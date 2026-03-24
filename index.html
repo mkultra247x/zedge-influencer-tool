@@ -131,9 +131,17 @@ tr:hover { background: var(--surface2); }
   <div class="api-bar">
     <label>🔑 YouTube API Key:</label>
     <input type="password" id="apiKey" placeholder="Enter your YouTube Data API v3 key…">
-    <button class="btn btn-secondary" onclick="toggleKeyVisibility()" id="toggleKey">Show</button>
+    <button class="btn btn-secondary" onclick="toggleKeyVisibility('apiKey','toggleKey')" id="toggleKey">Show</button>
     <button class="btn btn-primary" onclick="saveApiKey()">Save</button>
     <span class="status" id="keyStatus"></span>
+  </div>
+  <div class="api-bar">
+    <label>🔑 TikTok API Key:</label>
+    <input type="password" id="tiktokKey" placeholder="ScrapeCreators API key (free at scrapecreators.com)…">
+    <button class="btn btn-secondary" onclick="toggleKeyVisibility('tiktokKey','toggleTikTokKey')" id="toggleTikTokKey">Show</button>
+    <button class="btn btn-primary" onclick="saveTikTokKey()">Save</button>
+    <span class="status" id="tiktokKeyStatus"></span>
+    <a href="https://app.scrapecreators.com" target="_blank" style="font-size:11px;color:var(--accent2);text-decoration:none;">Get free key →</a>
   </div>
 
   <!-- Main Layout -->
@@ -219,7 +227,7 @@ tr:hover { background: var(--surface2); }
           <option value="500000">500K+</option>
           <option value="1000000">1M+</option>
         </select>
-        <span style="font-size:11px;color:var(--text2);">YouTube only — TikTok/IG generate search links instead</span>
+        <span style="font-size:11px;color:var(--text2);">Applies to YouTube & TikTok — Instagram generates search links only</span>
       </div>
 
       <!-- Actions -->
@@ -249,10 +257,10 @@ tr:hover { background: var(--surface2); }
           <table>
             <thead>
               <tr>
-                <th onclick="sortBy('title')">Channel <span class="sort-arrow" id="sort-title"></span></th>
-                <th onclick="sortBy('subscribers')">Subscribers <span class="sort-arrow" id="sort-subscribers"></span></th>
-                <th onclick="sortBy('views')">Total Views <span class="sort-arrow" id="sort-views"></span></th>
-                <th onclick="sortBy('videos')">Videos <span class="sort-arrow" id="sort-videos"></span></th>
+                <th onclick="sortBy('title')" id="th-title">Channel <span class="sort-arrow" id="sort-title"></span></th>
+                <th onclick="sortBy('subscribers')" id="th-subscribers">Subscribers <span class="sort-arrow" id="sort-subscribers"></span></th>
+                <th onclick="sortBy('views')" id="th-views">Total Views <span class="sort-arrow" id="sort-views"></span></th>
+                <th onclick="sortBy('videos')" id="th-videos">Videos <span class="sort-arrow" id="sort-videos"></span></th>
                 <th onclick="sortBy('engagement')">Eng. Rate <span class="sort-arrow" id="sort-engagement"></span></th>
                 <th>Description</th>
               </tr>
@@ -291,37 +299,43 @@ const NICHE_KEYWORDS = [
 
 // ————— API Key Management —————
 function loadApiKey() {
-  const key = localStorage.getItem('yt_api_key') || '';
-  document.getElementById('apiKey').value = key;
+  document.getElementById('apiKey').value = localStorage.getItem('yt_api_key') || '';
+  document.getElementById('tiktokKey').value = localStorage.getItem('tiktok_api_key') || '';
   updateKeyStatus();
+  updateTikTokKeyStatus();
 }
 
 function saveApiKey() {
   const key = document.getElementById('apiKey').value.trim();
-  if (key) {
-    localStorage.setItem('yt_api_key', key);
-    showMsg('API key saved ✓', 'info');
-  } else {
-    localStorage.removeItem('yt_api_key');
-  }
+  if (key) { localStorage.setItem('yt_api_key', key); showMsg('YouTube API key saved ✓', 'info'); }
+  else { localStorage.removeItem('yt_api_key'); }
   updateKeyStatus();
+}
+
+function saveTikTokKey() {
+  const key = document.getElementById('tiktokKey').value.trim();
+  if (key) { localStorage.setItem('tiktok_api_key', key); showMsg('TikTok API key saved ✓', 'info'); }
+  else { localStorage.removeItem('tiktok_api_key'); }
+  updateTikTokKeyStatus();
 }
 
 function updateKeyStatus() {
   const el = document.getElementById('keyStatus');
   const key = localStorage.getItem('yt_api_key');
-  if (key) {
-    el.textContent = '✓ Saved';
-    el.className = 'status saved';
-  } else {
-    el.textContent = '✗ Not set';
-    el.className = 'status missing';
-  }
+  el.textContent = key ? '✓ Saved' : '✗ Not set';
+  el.className = key ? 'status saved' : 'status missing';
 }
 
-function toggleKeyVisibility() {
-  const inp = document.getElementById('apiKey');
-  const btn = document.getElementById('toggleKey');
+function updateTikTokKeyStatus() {
+  const el = document.getElementById('tiktokKeyStatus');
+  const key = localStorage.getItem('tiktok_api_key');
+  el.textContent = key ? '✓ Saved' : '✗ Not set';
+  el.className = key ? 'status saved' : 'status missing';
+}
+
+function toggleKeyVisibility(inputId, btnId) {
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
   if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'Hide'; }
   else { inp.type = 'password'; btn.textContent = 'Show'; }
 }
@@ -355,6 +369,14 @@ async function doSearch() {
 
   if (currentPlatform === 'youtube') {
     await searchYouTube(query);
+  } else if (currentPlatform === 'tiktok') {
+    const tiktokKey = localStorage.getItem('tiktok_api_key') || document.getElementById('tiktokKey').value.trim();
+    if (tiktokKey) {
+      await searchTikTok(query, tiktokKey);
+    } else {
+      generateSocialLinks(query, 'tiktok');
+      showMsg('💡 Add a TikTok API key (free at scrapecreators.com) to search with follower counts instead of just links.', 'info');
+    }
   } else {
     generateSocialLinks(query, currentPlatform);
   }
@@ -446,6 +468,83 @@ async function searchYouTube(query) {
   }
 }
 
+async function searchTikTok(query, apiKey) {
+  const btn = document.getElementById('searchBtn');
+  const spinner = document.getElementById('spinner');
+  btn.disabled = true;
+  spinner.style.display = 'block';
+
+  try {
+    const url = `https://api.scrapecreators.com/v1/tiktok/search/users?query=${encodeURIComponent(query)}`;
+    const res = await fetch(url, {
+      headers: { 'x-api-key': apiKey }
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`API error ${res.status}: ${errText}`);
+    }
+    const data = await res.json();
+
+    if (!data.users || data.users.length === 0) {
+      showMsg('No TikTok users found for this keyword. Try a different search term.', 'info');
+      results = [];
+      renderTable();
+      return;
+    }
+
+    results = data.users.map(u => {
+      const info = u.user_info || {};
+      const followers = info.follower_count || 0;
+      const following = info.following_count || 0;
+      const likes = info.total_favorited || 0;
+      const videos = info.aweme_count || 0;
+      const engagement = videos > 0 && followers > 0 ? ((likes / videos) / followers * 100).toFixed(2) : '0.00';
+      const avatar = info.avatar_thumb?.url_list?.[0] || '';
+      const username = info.unique_id || info.uid || '';
+      const nickname = info.nickname || username;
+      const bio = info.signature || '';
+
+      return {
+        id: username,
+        title: nickname,
+        description: bio,
+        thumbnail: avatar,
+        subscribers: followers,
+        views: likes,
+        videos: videos,
+        engagement: parseFloat(engagement),
+        url: `https://www.tiktok.com/@${username}`,
+        country: info.region || '—'
+      };
+    });
+
+    // Apply minimum subscribers filter
+    const minSubs = parseInt(document.getElementById('minSubs').value) || 0;
+    if (minSubs > 0) {
+      const before = results.length;
+      results = results.filter(r => r.subscribers >= minSubs);
+      if (results.length < before) {
+        showMsg(`Filtered: showing ${results.length} of ${before} TikTok creators (min ${formatNum(minSubs)} followers)`, 'info');
+      }
+    }
+
+    // Sort by followers desc
+    sortCol = 'subscribers';
+    sortAsc = false;
+    results.sort((a, b) => b.subscribers - a.subscribers);
+
+    renderTable();
+    document.getElementById('socialLinks').style.display = 'none';
+    document.getElementById('quotaBar').style.display = 'none';
+
+  } catch (err) {
+    showMsg('TikTok API Error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
 function generateSocialLinks(query, platform) {
   const keywords = [query, ...NICHE_KEYWORDS.filter(k => k !== query)].slice(0, 15);
   const grid = document.getElementById('socialLinkGrid');
@@ -502,7 +601,15 @@ function renderTable() {
   empty.style.display = 'none';
   wrap.style.display = 'block';
   exportBtn.style.display = 'inline-block';
-  countEl.textContent = `${results.length} channels found`;
+
+  // Update headers based on platform
+  const isTikTok = currentPlatform === 'tiktok';
+  document.getElementById('th-title').innerHTML = (isTikTok ? 'Creator' : 'Channel') + ` <span class="sort-arrow" id="sort-title"></span>`;
+  document.getElementById('th-subscribers').innerHTML = (isTikTok ? 'Followers' : 'Subscribers') + ` <span class="sort-arrow" id="sort-subscribers"></span>`;
+  document.getElementById('th-views').innerHTML = (isTikTok ? 'Total Likes' : 'Total Views') + ` <span class="sort-arrow" id="sort-views"></span>`;
+  document.getElementById('th-videos').innerHTML = 'Videos <span class="sort-arrow" id="sort-videos"></span>';
+
+  countEl.textContent = `${results.length} ${isTikTok ? 'creators' : 'channels'} found`;
 
   // Update sort arrows
   ['title', 'subscribers', 'views', 'videos', 'engagement'].forEach(col => {
