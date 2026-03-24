@@ -262,6 +262,7 @@ tr:hover { background: var(--surface2); }
                 <th onclick="sortBy('views')" id="th-views">Total Views <span class="sort-arrow" id="sort-views"></span></th>
                 <th onclick="sortBy('videos')" id="th-videos">Videos <span class="sort-arrow" id="sort-videos"></span></th>
                 <th onclick="sortBy('engagement')">Eng. Rate <span class="sort-arrow" id="sort-engagement"></span></th>
+                <th onclick="sortBy('country')" id="th-country">Country <span class="sort-arrow" id="sort-country"></span></th>
                 <th>Socials</th>
                 <th>Email</th>
                 <th>Proof</th>
@@ -712,7 +713,7 @@ function renderTable() {
   countEl.textContent = `${results.length} ${isIG ? 'profiles' : (isTikTok ? 'creators' : 'channels')} found`;
 
   // Update sort arrows
-  ['title', 'subscribers', 'views', 'videos', 'engagement'].forEach(col => {
+  ['title', 'subscribers', 'views', 'videos', 'engagement', 'country'].forEach(col => {
     const el = document.getElementById('sort-' + col);
     if (col === sortCol) el.textContent = sortAsc ? '▲' : '▼';
     else el.textContent = '';
@@ -738,6 +739,7 @@ function renderTable() {
       <td>${formatNum(r.views)}</td>
       <td>${formatNum(r.videos)}</td>
       <td>${r.engagement}%</td>
+      <td style="white-space:nowrap;font-size:12px;">${r.country !== '—' ? countryFlag(r.country) + ' ' + r.country : '<span style="color:var(--text2);">—</span>'}</td>
       <td style="white-space:nowrap;">${renderSocials(r.socials || {instagram:[],tiktok:[],twitter:[],email:[]})}</td>
       <td style="white-space:nowrap;">${renderEmail(r.socials || {instagram:[],tiktok:[],twitter:[],email:[]})}</td>
       <td><a href="${proofLink}" target="_blank" rel="noopener" style="color:var(--green);text-decoration:none;font-size:12px;" title="See their videos matching '${escHtml(lastQuery)}'">🔗 Videos</a></td>
@@ -860,6 +862,11 @@ function formatNum(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
   if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
   return n.toString();
+}
+
+function countryFlag(code) {
+  if (!code || code === '—' || code.length !== 2) return '';
+  return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
 }
 
 function escHtml(s) {
