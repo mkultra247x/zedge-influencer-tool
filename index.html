@@ -229,9 +229,11 @@ tr:hover { background: var(--surface2); }
         </select>
         <label style="font-size:13px;color:var(--text2);white-space:nowrap;margin-left:16px;">Results:</label>
         <select id="maxResults" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px;cursor:pointer;">
-          <option value="10">10</option>
-          <option value="25" selected>25</option>
-          <option value="50">50</option>
+          <option value="10">Max 10</option>
+          <option value="25" selected>Max 25</option>
+          <option value="50">Max 50</option>
+          <option value="100">Max 100 (2x quota)</option>
+          <option value="150">Max 150 (3x quota)</option>
         </select>
         <span style="font-size:11px;color:var(--text2);">Applies to YouTube & TikTok — Instagram generates search links only</span>
       </div>
@@ -416,25 +418,45 @@ async function searchYouTube(query) {
 
   try {
     // Step 1: Search for channels
-    const maxR = document.getElementById('maxResults').value;
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=channel&maxResults=${Math.min(maxR, 50)}&key=${apiKey}`;
-    const searchRes = await fetch(searchUrl);
-    if (!searchRes.ok) {
-      const err = await searchRes.json();
-      throw new Error(err.error?.message || `API error ${searchRes.status}`);
-    }
-    const searchData = await searchRes.json();
-    quotaUsed += 100;
+    const maxR = parseInt(document.getElementById('maxResults').value) || 25;
+    let allItems = [];
+    let pageToken = '';
+    let remaining = maxR;
 
-    if (!searchData.items || searchData.items.length === 0) {
+    // Paginate: YouTube max 50 per request
+    while (remaining > 0) {
+      const perPage = Math.min(remaining, 50);
+      let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=channel&maxResults=${perPage}&key=${apiKey}`;
+      if (pageToken) searchUrl += `&pageToken=${pageToken}`;
+
+      const searchRes = await fetch(searchUrl);
+      if (!searchRes.ok) {
+        const err = await searchRes.json();
+        throw new Error(err.error?.message || `API error ${searchRes.status}`);
+      }
+      const searchData = await searchRes.json();
+      quotaUsed += 100;
+
+      if (!searchData.items || searchData.items.length === 0) break;
+      allItems = allItems.concat(searchData.items);
+      remaining -= searchData.items.length;
+
+      if (searchData.nextPageToken && remaining > 0) {
+        pageToken = searchData.nextPageToken;
+      } else {
+        break;
+      }
+    }
+
+    if (allItems.length === 0) {
       showMsg('No channels found for this keyword. Try a different search term.', 'info');
       results = [];
       renderTable();
       return;
     }
 
-    // Step 2: Get channel statistics
-    const channelIds = searchData.items.map(item => item.snippet.channelId || item.id.channelId).join(',');
+    // Step 2: Get channel statistics (batch in groups of 50)
+    const channelIds = allItems.map(item => item.snippet.channelId || item.id.channelId).join(',');
     const statsUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet,brandingSettings&id=${channelIds}&key=${apiKey}`;
     const statsRes = await fetch(statsUrl);
     if (!statsRes.ok) {
