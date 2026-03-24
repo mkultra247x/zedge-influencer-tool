@@ -204,6 +204,24 @@ tr:hover { background: var(--surface2); }
         </div>
       </div>
 
+      <!-- Filters -->
+      <div class="filters" style="display:flex;gap:10px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+        <label style="font-size:13px;color:var(--text2);white-space:nowrap;">Min Subscribers:</label>
+        <select id="minSubs" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px;cursor:pointer;">
+          <option value="0">No minimum</option>
+          <option value="1000">1K+</option>
+          <option value="5000">5K+</option>
+          <option value="10000" selected>10K+</option>
+          <option value="25000">25K+</option>
+          <option value="50000">50K+</option>
+          <option value="100000">100K+</option>
+          <option value="250000">250K+</option>
+          <option value="500000">500K+</option>
+          <option value="1000000">1M+</option>
+        </select>
+        <span style="font-size:11px;color:var(--text2);">Channels below this threshold are filtered out</span>
+      </div>
+
       <!-- Actions -->
       <div class="actions">
         <button class="btn btn-primary" id="searchBtn" onclick="doSearch()">🔍 Search</button>
@@ -400,6 +418,16 @@ async function searchYouTube(query) {
         country: ch.snippet.country || '—'
       };
     });
+
+    // Apply minimum subscribers filter
+    const minSubs = parseInt(document.getElementById('minSubs').value) || 0;
+    if (minSubs > 0) {
+      const before = results.length;
+      results = results.filter(r => r.subscribers >= minSubs);
+      if (results.length < before) {
+        showMsg(`Filtered: showing ${results.length} of ${before} channels (min ${formatNum(minSubs)} subscribers)`, 'info');
+      }
+    }
 
     // Default sort by subscribers desc
     sortCol = 'subscribers';
