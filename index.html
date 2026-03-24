@@ -488,14 +488,15 @@ async function searchTikTok(query, apiKey) {
     }
     const data = await res.json();
 
-    if (!data.users || data.users.length === 0) {
+    const userList = data.user_list || data.users || [];
+    if (userList.length === 0) {
       showMsg('No TikTok users found for this keyword. Try a different search term.', 'info');
       results = [];
       renderTable();
       return;
     }
 
-    results = data.users.map(u => {
+    results = userList.map(u => {
       const info = u.user_info || {};
       const followers = info.follower_count || 0;
       const following = info.following_count || 0;
