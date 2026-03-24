@@ -227,6 +227,12 @@ tr:hover { background: var(--surface2); }
           <option value="500000">500K+</option>
           <option value="1000000">1M+</option>
         </select>
+        <label style="font-size:13px;color:var(--text2);white-space:nowrap;margin-left:16px;">Results:</label>
+        <select id="maxResults" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px;cursor:pointer;">
+          <option value="10">10</option>
+          <option value="25" selected>25</option>
+          <option value="50">50</option>
+        </select>
         <span style="font-size:11px;color:var(--text2);">Applies to YouTube & TikTok — Instagram generates search links only</span>
       </div>
 
@@ -410,7 +416,8 @@ async function searchYouTube(query) {
 
   try {
     // Step 1: Search for channels
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=channel&maxResults=25&key=${apiKey}`;
+    const maxR = document.getElementById('maxResults').value;
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=channel&maxResults=${Math.min(maxR, 50)}&key=${apiKey}`;
     const searchRes = await fetch(searchUrl);
     if (!searchRes.ok) {
       const err = await searchRes.json();
@@ -506,7 +513,8 @@ async function searchTikTok(query, apiKey) {
     }
     const data = await res.json();
 
-    const userList = data.user_list || data.users || [];
+    const maxR = parseInt(document.getElementById('maxResults').value) || 25;
+    let userList = (data.user_list || data.users || []).slice(0, maxR);
     if (userList.length === 0) {
       showMsg('No TikTok users found for this keyword. Try a different search term.', 'info');
       results = [];
