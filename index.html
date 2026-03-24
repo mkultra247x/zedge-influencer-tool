@@ -496,8 +496,10 @@ async function searchYouTube(query) {
     if (minSubs > 0) {
       const before = results.length;
       results = results.filter(r => r.subscribers >= minSubs);
-      if (results.length < before) {
-        showMsg(`Filtered: showing ${results.length} of ${before} channels (min ${formatNum(minSubs)} subscribers)`, 'info');
+      if (results.length === 0 && before > 0) {
+        showMsg(`Found ${before} channels but ALL are below ${formatNum(minSubs)} subscribers. Try lowering the minimum filter.`, 'error');
+      } else if (results.length < before) {
+        showMsg(`Filtered: showing ${results.length} of ${before} channels (${before - results.length} below ${formatNum(minSubs)} subs removed)`, 'info');
       }
     }
 
@@ -582,8 +584,10 @@ async function searchTikTok(query, apiKey) {
     if (minSubs > 0) {
       const before = results.length;
       results = results.filter(r => r.subscribers >= minSubs);
-      if (results.length < before) {
-        showMsg(`Filtered: showing ${results.length} of ${before} TikTok creators (min ${formatNum(minSubs)} followers)`, 'info');
+      if (results.length === 0 && before > 0) {
+        showMsg(`Found ${before} TikTok creators but ALL are below ${formatNum(minSubs)} followers. Try lowering the minimum filter.`, 'error');
+      } else if (results.length < before) {
+        showMsg(`Filtered: showing ${results.length} of ${before} creators (${before - results.length} below ${formatNum(minSubs)} followers removed)`, 'info');
       }
     }
 
