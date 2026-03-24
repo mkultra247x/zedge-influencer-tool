@@ -208,7 +208,7 @@ tr:hover { background: var(--surface2); }
         <div class="platform-tabs">
           <div class="platform-tab active" data-platform="youtube" onclick="selectPlatform(this)">▶ YouTube</div>
           <div class="platform-tab" data-platform="tiktok" onclick="selectPlatform(this)">♪ TikTok</div>
-          <div class="platform-tab" data-platform="instagram" onclick="selectPlatform(this)">📷 Instagram</div>
+          <div class="platform-tab" data-platform="instagram" onclick="selectPlatform(this)">📷 IG Lookup</div>
         </div>
       </div>
 
@@ -262,6 +262,8 @@ tr:hover { background: var(--surface2); }
                 <th onclick="sortBy('views')" id="th-views">Total Views <span class="sort-arrow" id="sort-views"></span></th>
                 <th onclick="sortBy('videos')" id="th-videos">Videos <span class="sort-arrow" id="sort-videos"></span></th>
                 <th onclick="sortBy('engagement')">Eng. Rate <span class="sort-arrow" id="sort-engagement"></span></th>
+                <th>Socials</th>
+                <th>Email</th>
                 <th>Proof</th>
                 <th>Description</th>
               </tr>
@@ -347,6 +349,12 @@ function selectPlatform(el) {
   document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   currentPlatform = el.dataset.platform;
+  const input = document.getElementById('searchInput');
+  if (currentPlatform === 'instagram') {
+    input.placeholder = 'Enter IG usernames (comma-separated, e.g. mkbhd, haleydasovich)…';
+  } else {
+    input.placeholder = 'Search for influencers…';
+  }
 }
 
 function useKeyword(el) {
@@ -380,8 +388,13 @@ async function doSearch() {
       generateSocialLinks(query, 'tiktok');
       showMsg('💡 Add a TikTok API key (free at scrapecreators.com) to search with follower counts instead of just links.', 'info');
     }
-  } else {
-    generateSocialLinks(query, currentPlatform);
+  } else if (currentPlatform === 'instagram') {
+    const tiktokKey = localStorage.getItem('tiktok_api_key') || document.getElementById('tiktokKey').value.trim();
+    if (tiktokKey) {
+      await lookupInstagram(query, tiktokKey);
+    } else {
+      showMsg('IG Lookup needs a ScrapeCreators API key. Add one above (free at scrapecreators.com).', 'error');
+    }
   }
 }
 
@@ -430,17 +443,21 @@ async function searchYouTube(query) {
       const videos = parseInt(ch.statistics.videoCount) || 0;
       const engagement = videos > 0 ? (views / videos / Math.max(subs, 1) * 100).toFixed(2) : '0.00';
 
+      const desc = ch.snippet.description || '';
+      const socials = parseSocials(desc);
+
       return {
         id: ch.id,
         title: ch.snippet.title,
-        description: ch.snippet.description || '',
+        description: desc,
         thumbnail: ch.snippet.thumbnails?.default?.url || '',
         subscribers: subs,
         views: views,
         videos: videos,
         engagement: parseFloat(engagement),
         url: `https://www.youtube.com/channel/${ch.id}`,
-        country: ch.snippet.country || '—'
+        country: ch.snippet.country || '—',
+        socials: socials
       };
     });
 
@@ -508,6 +525,12 @@ async function searchTikTok(query, apiKey) {
       const nickname = info.nickname || username;
       const bio = info.signature || '';
 
+      const socials = parseSocials(bio);
+      const insId = info.ins_id || '';
+      if (insId && !socials.instagram.includes(insId)) socials.instagram.push(insId);
+      const ytId = info.youtube_channel_id || '';
+      if (ytId) socials.tiktok.push('YT:' + ytId);
+
       return {
         id: username,
         title: nickname,
@@ -518,7 +541,8 @@ async function searchTikTok(query, apiKey) {
         videos: videos,
         engagement: parseFloat(engagement),
         url: `https://www.tiktok.com/@${username}`,
-        country: info.region || '—'
+        country: info.region || '—',
+        socials: socials
       };
     });
 
@@ -543,6 +567,76 @@ async function searchTikTok(query, apiKey) {
 
   } catch (err) {
     showMsg('TikTok API Error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+async function lookupInstagram(query, apiKey) {
+  const usernames = query.split(/[,\s]+/).map(u => u.replace(/^@/, '').trim()).filter(Boolean);
+  if (usernames.length === 0) { showMsg('Enter one or more Instagram usernames separated by commas.', 'error'); return; }
+
+  const btn = document.getElementById('searchBtn');
+  const spinner = document.getElementById('spinner');
+  btn.disabled = true;
+  spinner.style.display = 'block';
+
+  try {
+    results = [];
+    let errors = [];
+    for (const username of usernames) {
+      try {
+        const url = `https://api.scrapecreators.com/v1/instagram/profile?handle=${encodeURIComponent(username)}`;
+        const res = await fetch(url, { headers: { 'x-api-key': apiKey } });
+        if (!res.ok) { errors.push(`${username}: API error ${res.status}`); continue; }
+        const data = await res.json();
+        const user = data.user || data;
+        const followers = user.follower_count || user.edge_followed_by?.count || 0;
+        const following = user.following_count || user.edge_follow?.count || 0;
+        const posts = user.media_count || user.edge_owner_to_timeline_media?.count || 0;
+        const bio = user.biography || user.bio || '';
+        const avatar = user.profile_pic_url || user.profile_pic_url_hd || '';
+        const fullName = user.full_name || user.name || username;
+        const isVerified = user.is_verified || false;
+        const engagement = 0; // Can't calculate without post data
+        const socials = parseSocials(bio);
+
+        results.push({
+          id: username,
+          title: (isVerified ? '✓ ' : '') + fullName + ' (@' + username + ')',
+          description: bio,
+          thumbnail: avatar,
+          subscribers: followers,
+          views: following,
+          videos: posts,
+          engagement: engagement,
+          url: `https://instagram.com/${username}`,
+          country: '—',
+          socials: socials
+        });
+      } catch (e) { errors.push(`${username}: ${e.message}`); }
+    }
+
+    if (errors.length) showMsg(`Some lookups failed: ${errors.join('; ')}`, 'info');
+
+    // Apply min filter
+    const minSubs = parseInt(document.getElementById('minSubs').value) || 0;
+    if (minSubs > 0) {
+      const before = results.length;
+      results = results.filter(r => r.subscribers >= minSubs);
+      if (results.length < before) showMsg(`Filtered: showing ${results.length} of ${before} profiles (min ${formatNum(minSubs)} followers)`, 'info');
+    }
+
+    sortCol = 'subscribers';
+    sortAsc = false;
+    results.sort((a, b) => b.subscribers - a.subscribers);
+    renderTable();
+    document.getElementById('socialLinks').style.display = 'none';
+    document.getElementById('quotaBar').style.display = 'none';
+
+  } catch (err) {
+    showMsg('Instagram Lookup Error: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
     spinner.style.display = 'none';
@@ -608,12 +702,14 @@ function renderTable() {
 
   // Update headers based on platform
   const isTikTok = currentPlatform === 'tiktok';
-  document.getElementById('th-title').innerHTML = (isTikTok ? 'Creator' : 'Channel') + ` <span class="sort-arrow" id="sort-title"></span>`;
-  document.getElementById('th-subscribers').innerHTML = (isTikTok ? 'Followers' : 'Subscribers') + ` <span class="sort-arrow" id="sort-subscribers"></span>`;
-  document.getElementById('th-views').innerHTML = (isTikTok ? 'Total Likes' : 'Total Views') + ` <span class="sort-arrow" id="sort-views"></span>`;
-  document.getElementById('th-videos').innerHTML = 'Videos <span class="sort-arrow" id="sort-videos"></span>';
+  const isIG = currentPlatform === 'instagram';
+  const label = isIG ? 'Profile' : (isTikTok ? 'Creator' : 'Channel');
+  document.getElementById('th-title').innerHTML = label + ` <span class="sort-arrow" id="sort-title"></span>`;
+  document.getElementById('th-subscribers').innerHTML = 'Followers <span class="sort-arrow" id="sort-subscribers"></span>';
+  document.getElementById('th-views').innerHTML = (isIG ? 'Following' : (isTikTok ? 'Total Likes' : 'Total Views')) + ` <span class="sort-arrow" id="sort-views"></span>`;
+  document.getElementById('th-videos').innerHTML = (isIG ? 'Posts' : 'Videos') + ' <span class="sort-arrow" id="sort-videos"></span>';
 
-  countEl.textContent = `${results.length} ${isTikTok ? 'creators' : 'channels'} found`;
+  countEl.textContent = `${results.length} ${isIG ? 'profiles' : (isTikTok ? 'creators' : 'channels')} found`;
 
   // Update sort arrows
   ['title', 'subscribers', 'views', 'videos', 'engagement'].forEach(col => {
@@ -642,6 +738,8 @@ function renderTable() {
       <td>${formatNum(r.views)}</td>
       <td>${formatNum(r.videos)}</td>
       <td>${r.engagement}%</td>
+      <td style="white-space:nowrap;">${renderSocials(r.socials || {instagram:[],tiktok:[],twitter:[],email:[]})}</td>
+      <td style="white-space:nowrap;">${renderEmail(r.socials || {instagram:[],tiktok:[],twitter:[],email:[]})}</td>
       <td><a href="${proofLink}" target="_blank" rel="noopener" style="color:var(--green);text-decoration:none;font-size:12px;" title="See their videos matching '${escHtml(lastQuery)}'">🔗 Videos</a></td>
       <td><div class="desc-cell" title="${escHtml(r.description)}">${escHtml(r.description.slice(0, 120))}</div></td>
     </tr>`;
@@ -668,14 +766,19 @@ function sortBy(col) {
 function exportCSV() {
   if (results.length === 0) return;
   const q = encodeURIComponent(lastQuery);
-  const headers = ['Channel', 'URL', 'Proof Link', 'Search Keyword', 'Subscribers', 'Total Views', 'Videos', 'Engagement Rate (%)', 'Country', 'Description'];
+  const headers = ['Channel', 'URL', 'Instagram', 'TikTok', 'Twitter', 'Email', 'Proof Link', 'Search Keyword', 'Subscribers', 'Total Views', 'Videos', 'Engagement Rate (%)', 'Country', 'Description'];
   const rows = results.map(r => {
     const proofUrl = currentPlatform === 'youtube'
       ? `https://www.youtube.com/channel/${r.id}/search?query=${q}`
       : `https://www.tiktok.com/@${r.id}`;
+    const s = r.socials || {instagram:[],tiktok:[],twitter:[],email:[]};
     return [
       `"${r.title.replace(/"/g, '""')}"`,
       r.url,
+      `"${s.instagram.join(', ')}"`,
+      `"${s.tiktok.join(', ')}"`,
+      `"${s.twitter.join(', ')}"`,
+      `"${s.email.join(', ')}"`,
       proofUrl,
       `"${lastQuery.replace(/"/g, '""')}"`,
       r.subscribers,
@@ -708,6 +811,48 @@ function updateQuota() {
   fill.style.width = pct + '%';
   fill.style.background = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--orange)' : 'var(--green)';
   text.textContent = `~${quotaUsed}/${QUOTA_LIMIT} units`;
+}
+
+// ————— Social Link Parser —————
+function parseSocials(text) {
+  const socials = { instagram: [], tiktok: [], twitter: [], email: [] };
+  if (!text) return socials;
+  // Instagram
+  const igPatterns = [
+    /instagram\.com\/([a-zA-Z0-9_.]+)/gi,
+    /(?:ig|insta|instagram)[:\s]+@?([a-zA-Z0-9_.]+)/gi
+  ];
+  igPatterns.forEach(p => { let m; while ((m = p.exec(text)) !== null) socials.instagram.push(m[1]); });
+  // TikTok
+  const ttPatterns = [
+    /tiktok\.com\/@([a-zA-Z0-9_.]+)/gi,
+    /(?:tiktok)[:\s]+@?([a-zA-Z0-9_.]+)/gi
+  ];
+  ttPatterns.forEach(p => { let m; while ((m = p.exec(text)) !== null) socials.tiktok.push(m[1]); });
+  // Twitter/X
+  const twPatterns = [
+    /(?:twitter|x)\.com\/([a-zA-Z0-9_]+)/gi
+  ];
+  twPatterns.forEach(p => { let m; while ((m = p.exec(text)) !== null) socials.twitter.push(m[1]); });
+  // Email
+  const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+  let em; while ((em = emailPattern.exec(text)) !== null) socials.email.push(em[0]);
+  // Dedupe
+  Object.keys(socials).forEach(k => socials[k] = [...new Set(socials[k])]);
+  return socials;
+}
+
+function renderSocials(socials) {
+  const parts = [];
+  if (socials.instagram.length) parts.push(socials.instagram.map(h => `<a href="https://instagram.com/${h}" target="_blank" style="color:#e1306c;text-decoration:none;font-size:11px;">📷${h}</a>`).join(' '));
+  if (socials.tiktok.length) parts.push(socials.tiktok.map(h => `<a href="https://tiktok.com/@${h}" target="_blank" style="color:#fe2c55;text-decoration:none;font-size:11px;">♪${h}</a>`).join(' '));
+  if (socials.twitter.length) parts.push(socials.twitter.map(h => `<a href="https://x.com/${h}" target="_blank" style="color:#1da1f2;text-decoration:none;font-size:11px;">𝕏${h}</a>`).join(' '));
+  return parts.join('<br>') || '<span style="color:var(--text2);font-size:11px;">—</span>';
+}
+
+function renderEmail(socials) {
+  if (socials.email.length) return socials.email.map(e => `<a href="mailto:${e}" style="color:var(--green);text-decoration:none;font-size:11px;">✉️${e}</a>`).join('<br>');
+  return '<span style="color:var(--text2);font-size:11px;">—</span>';
 }
 
 // ————— Helpers —————
