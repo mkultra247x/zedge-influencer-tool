@@ -262,6 +262,7 @@ tr:hover { background: var(--surface2); }
                 <th onclick="sortBy('views')" id="th-views">Total Views <span class="sort-arrow" id="sort-views"></span></th>
                 <th onclick="sortBy('videos')" id="th-videos">Videos <span class="sort-arrow" id="sort-videos"></span></th>
                 <th onclick="sortBy('engagement')">Eng. Rate <span class="sort-arrow" id="sort-engagement"></span></th>
+                <th>Proof</th>
                 <th>Description</th>
               </tr>
             </thead>
@@ -286,6 +287,7 @@ let results = [];
 let sortCol = 'subscribers';
 let sortAsc = false;
 let quotaUsed = 0;
+let lastQuery = '';
 const QUOTA_LIMIT = 10000;
 
 // ————— Keywords for URL generation —————
@@ -367,6 +369,7 @@ async function doSearch() {
   if (!query) { showMsg('Enter a search keyword first.', 'error'); return; }
   clearMsg();
 
+  lastQuery = query;
   if (currentPlatform === 'youtube') {
     await searchYouTube(query);
   } else if (currentPlatform === 'tiktok') {
@@ -618,7 +621,15 @@ function renderTable() {
     else el.textContent = '';
   });
 
-  tbody.innerHTML = results.map(r => `
+  const q = encodeURIComponent(lastQuery);
+  tbody.innerHTML = results.map(r => {
+    let proofLink = '';
+    if (currentPlatform === 'youtube') {
+      proofLink = `https://www.youtube.com/channel/${r.id}/search?query=${q}`;
+    } else if (currentPlatform === 'tiktok') {
+      proofLink = `https://www.tiktok.com/@${r.id}`;
+    }
+    return `
     <tr>
       <td>
         <div class="channel-cell">
@@ -630,9 +641,10 @@ function renderTable() {
       <td>${formatNum(r.views)}</td>
       <td>${formatNum(r.videos)}</td>
       <td>${r.engagement}%</td>
+      <td><a href="${proofLink}" target="_blank" rel="noopener" style="color:var(--green);text-decoration:none;font-size:12px;" title="See their videos matching '${escHtml(lastQuery)}'">🔗 Videos</a></td>
       <td><div class="desc-cell" title="${escHtml(r.description)}">${escHtml(r.description.slice(0, 120))}</div></td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
 
 // ————— Sorting —————
@@ -654,17 +666,25 @@ function sortBy(col) {
 // ————— CSV Export —————
 function exportCSV() {
   if (results.length === 0) return;
-  const headers = ['Channel', 'URL', 'Subscribers', 'Total Views', 'Videos', 'Engagement Rate (%)', 'Country', 'Description'];
-  const rows = results.map(r => [
-    `"${r.title.replace(/"/g, '""')}"`,
-    r.url,
-    r.subscribers,
-    r.views,
-    r.videos,
-    r.engagement,
-    r.country,
-    `"${r.description.replace(/"/g, '""').replace(/\n/g, ' ').slice(0, 200)}"`
-  ]);
+  const q = encodeURIComponent(lastQuery);
+  const headers = ['Channel', 'URL', 'Proof Link', 'Search Keyword', 'Subscribers', 'Total Views', 'Videos', 'Engagement Rate (%)', 'Country', 'Description'];
+  const rows = results.map(r => {
+    const proofUrl = currentPlatform === 'youtube'
+      ? `https://www.youtube.com/channel/${r.id}/search?query=${q}`
+      : `https://www.tiktok.com/@${r.id}`;
+    return [
+      `"${r.title.replace(/"/g, '""')}"`,
+      r.url,
+      proofUrl,
+      `"${lastQuery.replace(/"/g, '""')}"`,
+      r.subscribers,
+      r.views,
+      r.videos,
+      r.engagement,
+      r.country,
+      `"${r.description.replace(/"/g, '""').replace(/\n/g, ' ').slice(0, 200)}"`
+    ];
+  });
 
   const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
