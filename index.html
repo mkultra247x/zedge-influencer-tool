@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zedge Influencer Finder</title>
+<style>
+:root {
+  --bg: #0f0f13;
+  --surface: #1a1a24;
+  --surface2: #24243a;
+  --accent: #6c5ce7;
+  --accent2: #a29bfe;
+  --text: #e8e8f0;
+  --text2: #8888aa;
+  --green: #00cec9;
+  --red: #ff6b6b;
+  --orange: #fdcb6e;
+  --border: #2d2d44;
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+.app { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+/* Header */
+.header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.header h1 { font-size: 24px; font-weight: 700; }
+.header h1 span { color: var(--accent2); }
+.header .subtitle { color: var(--text2); font-size: 14px; }
+
+/* API Key Bar */
+.api-bar { display: flex; gap: 10px; align-items: center; background: var(--surface); padding: 12px 16px; border-radius: var(--radius); margin-bottom: 20px; flex-wrap: wrap; }
+.api-bar label { font-size: 13px; color: var(--text2); white-space: nowrap; }
+.api-bar input { flex: 1; min-width: 200px; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+.api-bar .status { font-size: 12px; padding: 4px 10px; border-radius: 20px; }
+.api-bar .status.saved { background: rgba(0,206,201,0.15); color: var(--green); }
+.api-bar .status.missing { background: rgba(255,107,107,0.15); color: var(--red); }
+
+/* Main Layout */
+.main { display: grid; grid-template-columns: 260px 1fr; gap: 20px; }
+@media (max-width: 768px) { .main { grid-template-columns: 1fr; } }
+
+/* Sidebar */
+.sidebar { background: var(--surface); border-radius: var(--radius); padding: 16px; height: fit-content; }
+.sidebar h3 { font-size: 14px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+.keyword-group { margin-bottom: 16px; }
+.keyword-group h4 { font-size: 13px; color: var(--accent2); margin-bottom: 8px; }
+.keyword-chip { display: inline-block; background: var(--surface2); color: var(--text); border: 1px solid var(--border); padding: 4px 10px; border-radius: 20px; font-size: 12px; cursor: pointer; margin: 2px; transition: all 0.2s; }
+.keyword-chip:hover { background: var(--accent); border-color: var(--accent); color: white; }
+
+/* Content */
+.content { min-width: 0; }
+
+/* Search Bar */
+.search-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.search-input { flex: 1; min-width: 200px; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 10px 16px; border-radius: var(--radius); font-size: 14px; }
+.search-input:focus { outline: none; border-color: var(--accent); }
+.platform-tabs { display: flex; gap: 4px; }
+.platform-tab { background: var(--surface); border: 1px solid var(--border); color: var(--text2); padding: 10px 16px; border-radius: var(--radius); cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+.platform-tab.active { background: var(--accent); border-color: var(--accent); color: white; }
+.platform-tab:hover:not(.active) { border-color: var(--accent2); color: var(--text); }
+
+/* Action Buttons */
+.actions { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.btn { padding: 10px 20px; border: none; border-radius: var(--radius); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--accent2); }
+.result-count { color: var(--text2); font-size: 13px; margin-left: auto; }
+.spinner { display: none; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Table */
+.table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { background: var(--surface2); }
+th { padding: 10px 14px; text-align: left; color: var(--text2); font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; position: relative; }
+th:hover { color: var(--text); }
+th .sort-arrow { margin-left: 4px; font-size: 10px; }
+td { padding: 10px 14px; border-top: 1px solid var(--border); }
+tr { background: var(--surface); transition: background 0.15s; }
+tr:hover { background: var(--surface2); }
+.channel-link { color: var(--accent2); text-decoration: none; font-weight: 600; }
+.channel-link:hover { color: var(--accent); text-decoration: underline; }
+.thumb { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 8px; }
+.channel-cell { display: flex; align-items: center; gap: 8px; min-width: 200px; }
+.desc-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); }
+
+/* Social links panel */
+.social-links { background: var(--surface); border-radius: var(--radius); padding: 16px; margin-top: 16px; }
+.social-links h3 { font-size: 14px; color: var(--text2); margin-bottom: 12px; }
+.social-link-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+.social-link-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface2); border-radius: 8px; }
+.social-link-item a { color: var(--accent2); text-decoration: none; font-size: 13px; word-break: break-all; }
+.social-link-item a:hover { text-decoration: underline; }
+.social-link-item .platform-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.badge-tiktok { background: rgba(0,0,0,0.3); color: #fe2c55; }
+.badge-instagram { background: rgba(0,0,0,0.3); color: #e1306c; }
+
+/* Error/Info messages */
+.message { padding: 12px 16px; border-radius: var(--radius); margin-bottom: 16px; font-size: 13px; display: none; }
+.message.error { background: rgba(255,107,107,0.1); color: var(--red); border: 1px solid rgba(255,107,107,0.2); display: block; }
+.message.info { background: rgba(108,92,231,0.1); color: var(--accent2); border: 1px solid rgba(108,92,231,0.2); display: block; }
+
+/* Empty State */
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text2); }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+/* Quota indicator */
+.quota-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); }
+.quota-bar .quota-fill { height: 4px; background: var(--border); border-radius: 2px; flex: 1; max-width: 100px; overflow: hidden; }
+.quota-bar .quota-fill-inner { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>🔍 <span>Zedge</span> Influencer Finder</h1>
+      <div class="subtitle">Discover wallpaper & phone customization influencers across YouTube, TikTok & Instagram</div>
+    </div>
+  </div>
+
+  <!-- API Key Bar -->
+  <div class="api-bar">
+    <label>🔑 YouTube API Key:</label>
+    <input type="password" id="apiKey" placeholder="Enter your YouTube Data API v3 key…">
+    <button class="btn btn-secondary" onclick="toggleKeyVisibility()" id="toggleKey">Show</button>
+    <button class="btn btn-primary" onclick="saveApiKey()">Save</button>
+    <span class="status" id="keyStatus"></span>
+  </div>
+
+  <!-- Main Layout -->
+  <div class="main">
+    <!-- Sidebar: Keyword Suggestions -->
+    <div class="sidebar">
+      <h3>🏷️ Keyword Ideas</h3>
+
+      <div class="keyword-group">
+        <h4>Wallpaper Apps</h4>
+        <span class="keyword-chip" onclick="useKeyword(this)">zedge wallpaper</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">best wallpaper app</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">phone wallpaper download</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">live wallpaper android</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">wallpaper app review</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">free wallpaper app</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">4k wallpaper phone</span>
+      </div>
+
+      <div class="keyword-group">
+        <h4>Phone Customization</h4>
+        <span class="keyword-chip" onclick="useKeyword(this)">phone customization</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">android customization</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">home screen setup</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">aesthetic phone setup</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">widget setup tutorial</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">KWGT widget</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">icon pack android</span>
+      </div>
+
+      <div class="keyword-group">
+        <h4>Ringtones & Sounds</h4>
+        <span class="keyword-chip" onclick="useKeyword(this)">best ringtones 2026</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">notification sounds</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">ringtone download app</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">custom ringtone</span>
+      </div>
+
+      <div class="keyword-group">
+        <h4>Tech & Reviews</h4>
+        <span class="keyword-chip" onclick="useKeyword(this)">must have android apps</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">phone tips tricks</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">best free apps</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">app review wallpaper</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">personalization apps</span>
+      </div>
+
+      <div class="keyword-group">
+        <h4>Aesthetic & Design</h4>
+        <span class="keyword-chip" onclick="useKeyword(this)">aesthetic wallpaper</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">dark wallpaper</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">anime wallpaper phone</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">minimalist wallpaper</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">amoled wallpaper</span>
+        <span class="keyword-chip" onclick="useKeyword(this)">nature wallpaper 4k</span>
+      </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="content">
+      <!-- Search Bar -->
+      <div class="search-bar">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search for influencers…" onkeydown="if(event.key==='Enter')doSearch()">
+        <div class="platform-tabs">
+          <div class="platform-tab active" data-platform="youtube" onclick="selectPlatform(this)">▶ YouTube</div>
+          <div class="platform-tab" data-platform="tiktok" onclick="selectPlatform(this)">♪ TikTok</div>
+          <div class="platform-tab" data-platform="instagram" onclick="selectPlatform(this)">📷 Instagram</div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions">
+        <button class="btn btn-primary" id="searchBtn" onclick="doSearch()">🔍 Search</button>
+        <button class="btn btn-secondary" id="exportBtn" onclick="exportCSV()" style="display:none">📥 Export CSV</button>
+        <div class="spinner" id="spinner"></div>
+        <span class="result-count" id="resultCount"></span>
+        <div class="quota-bar" id="quotaBar" style="display:none">
+          <span>Quota:</span>
+          <div class="quota-fill"><div class="quota-fill-inner" id="quotaFill"></div></div>
+          <span id="quotaText"></span>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="message" id="msgBox"></div>
+
+      <!-- Results Table -->
+      <div id="resultsArea">
+        <div class="empty-state" id="emptyState">
+          <div class="icon">🎯</div>
+          <p>Enter a keyword and hit Search to find influencers.<br>Click any keyword suggestion on the left to get started.</p>
+        </div>
+
+        <div class="table-wrap" id="tableWrap" style="display:none">
+          <table>
+            <thead>
+              <tr>
+                <th onclick="sortBy('title')">Channel <span class="sort-arrow" id="sort-title"></span></th>
+                <th onclick="sortBy('subscribers')">Subscribers <span class="sort-arrow" id="sort-subscribers"></span></th>
+                <th onclick="sortBy('views')">Total Views <span class="sort-arrow" id="sort-views"></span></th>
+                <th onclick="sortBy('videos')">Videos <span class="sort-arrow" id="sort-videos"></span></th>
+                <th onclick="sortBy('engagement')">Eng. Rate <span class="sort-arrow" id="sort-engagement"></span></th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Social Links for TikTok/Instagram -->
+      <div class="social-links" id="socialLinks" style="display:none">
+        <h3>🔗 Search Links — Open in New Tab</h3>
+        <div class="social-link-grid" id="socialLinkGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ————— State —————
+let currentPlatform = 'youtube';
+let results = [];
+let sortCol = 'subscribers';
+let sortAsc = false;
+let quotaUsed = 0;
+const QUOTA_LIMIT = 10000;
+
+// ————— Keywords for URL generation —————
+const NICHE_KEYWORDS = [
+  'zedge wallpaper', 'best wallpaper app', 'phone wallpaper', 'live wallpaper',
+  'android customization', 'home screen setup', 'aesthetic phone', 'wallpaper app review',
+  'phone customization tutorial', '4k wallpaper phone', 'amoled wallpaper',
+  'icon pack android', 'widget setup', 'ringtone app', 'notification sounds',
+  'free wallpaper download', 'anime wallpaper phone', 'dark wallpaper aesthetic'
+];
+
+// ————— API Key Management —————
+function loadApiKey() {
+  const key = localStorage.getItem('yt_api_key') || '';
+  document.getElementById('apiKey').value = key;
+  updateKeyStatus();
+}
+
+function saveApiKey() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (key) {
+    localStorage.setItem('yt_api_key', key);
+    showMsg('API key saved ✓', 'info');
+  } else {
+    localStorage.removeItem('yt_api_key');
+  }
+  updateKeyStatus();
+}
+
+function updateKeyStatus() {
+  const el = document.getElementById('keyStatus');
+  const key = localStorage.getItem('yt_api_key');
+  if (key) {
+    el.textContent = '✓ Saved';
+    el.className = 'status saved';
+  } else {
+    el.textContent = '✗ Not set';
+    el.className = 'status missing';
+  }
+}
+
+function toggleKeyVisibility() {
+  const inp = document.getElementById('apiKey');
+  const btn = document.getElementById('toggleKey');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'Hide'; }
+  else { inp.type = 'password'; btn.textContent = 'Show'; }
+}
+
+// ————— Platform Selection —————
+function selectPlatform(el) {
+  document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentPlatform = el.dataset.platform;
+}
+
+function useKeyword(el) {
+  document.getElementById('searchInput').value = el.textContent;
+  document.getElementById('searchInput').focus();
+}
+
+// ————— Messages —————
+function showMsg(text, type) {
+  const el = document.getElementById('msgBox');
+  el.textContent = text;
+  el.className = 'message ' + type;
+  if (type === 'info') setTimeout(() => { el.className = 'message'; }, 4000);
+}
+function clearMsg() { document.getElementById('msgBox').className = 'message'; }
+
+// ————— Search —————
+async function doSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) { showMsg('Enter a search keyword first.', 'error'); return; }
+  clearMsg();
+
+  if (currentPlatform === 'youtube') {
+    await searchYouTube(query);
+  } else {
+    generateSocialLinks(query, currentPlatform);
+  }
+}
+
+async function searchYouTube(query) {
+  const apiKey = localStorage.getItem('yt_api_key') || document.getElementById('apiKey').value.trim();
+  if (!apiKey) { showMsg('Please enter and save your YouTube API key first.', 'error'); return; }
+
+  const btn = document.getElementById('searchBtn');
+  const spinner = document.getElementById('spinner');
+  btn.disabled = true;
+  spinner.style.display = 'block';
+
+  try {
+    // Step 1: Search for channels
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=channel&maxResults=25&key=${apiKey}`;
+    const searchRes = await fetch(searchUrl);
+    if (!searchRes.ok) {
+      const err = await searchRes.json();
+      throw new Error(err.error?.message || `API error ${searchRes.status}`);
+    }
+    const searchData = await searchRes.json();
+    quotaUsed += 100;
+
+    if (!searchData.items || searchData.items.length === 0) {
+      showMsg('No channels found for this keyword. Try a different search term.', 'info');
+      results = [];
+      renderTable();
+      return;
+    }
+
+    // Step 2: Get channel statistics
+    const channelIds = searchData.items.map(item => item.snippet.channelId || item.id.channelId).join(',');
+    const statsUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet,brandingSettings&id=${channelIds}&key=${apiKey}`;
+    const statsRes = await fetch(statsUrl);
+    if (!statsRes.ok) {
+      const err = await statsRes.json();
+      throw new Error(err.error?.message || `API error ${statsRes.status}`);
+    }
+    const statsData = await statsRes.json();
+    quotaUsed += 1;
+
+    // Step 3: Merge data
+    results = statsData.items.map(ch => {
+      const subs = parseInt(ch.statistics.subscriberCount) || 0;
+      const views = parseInt(ch.statistics.viewCount) || 0;
+      const videos = parseInt(ch.statistics.videoCount) || 0;
+      const engagement = videos > 0 ? (views / videos / Math.max(subs, 1) * 100).toFixed(2) : '0.00';
+
+      return {
+        id: ch.id,
+        title: ch.snippet.title,
+        description: ch.snippet.description || '',
+        thumbnail: ch.snippet.thumbnails?.default?.url || '',
+        subscribers: subs,
+        views: views,
+        videos: videos,
+        engagement: parseFloat(engagement),
+        url: `https://www.youtube.com/channel/${ch.id}`,
+        country: ch.snippet.country || '—'
+      };
+    });
+
+    // Default sort by subscribers desc
+    sortCol = 'subscribers';
+    sortAsc = false;
+    results.sort((a, b) => b.subscribers - a.subscribers);
+
+    renderTable();
+    updateQuota();
+    document.getElementById('socialLinks').style.display = 'none';
+
+  } catch (err) {
+    showMsg('YouTube API Error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function generateSocialLinks(query, platform) {
+  const keywords = [query, ...NICHE_KEYWORDS.filter(k => k !== query)].slice(0, 15);
+  const grid = document.getElementById('socialLinkGrid');
+  grid.innerHTML = '';
+
+  keywords.forEach(kw => {
+    let urls = [];
+    if (platform === 'tiktok') {
+      urls = [
+        { label: `Search: "${kw}"`, url: `https://www.tiktok.com/search?q=${encodeURIComponent(kw)}` },
+        { label: `#${kw.replace(/\s+/g, '')}`, url: `https://www.tiktok.com/tag/${encodeURIComponent(kw.replace(/\s+/g, ''))}` }
+      ];
+    } else {
+      urls = [
+        { label: `#${kw.replace(/\s+/g, '')}`, url: `https://www.instagram.com/explore/tags/${encodeURIComponent(kw.replace(/\s+/g, ''))}/` },
+        { label: `Google: site:instagram.com "${kw}"`, url: `https://www.google.com/search?q=site:instagram.com+${encodeURIComponent(kw)}+influencer` }
+      ];
+    }
+
+    urls.forEach(u => {
+      const div = document.createElement('div');
+      div.className = 'social-link-item';
+      div.innerHTML = `
+        <span class="platform-badge badge-${platform}">${platform === 'tiktok' ? '♪ TikTok' : '📷 IG'}</span>
+        <a href="${u.url}" target="_blank" rel="noopener">${u.label}</a>
+      `;
+      grid.appendChild(div);
+    });
+  });
+
+  document.getElementById('socialLinks').style.display = 'block';
+  document.getElementById('tableWrap').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('exportBtn').style.display = 'none';
+  document.getElementById('resultCount').textContent = `${keywords.length} keyword variations generated`;
+}
+
+// ————— Render Table —————
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  const wrap = document.getElementById('tableWrap');
+  const empty = document.getElementById('emptyState');
+  const exportBtn = document.getElementById('exportBtn');
+  const countEl = document.getElementById('resultCount');
+
+  if (results.length === 0) {
+    wrap.style.display = 'none';
+    empty.style.display = 'block';
+    exportBtn.style.display = 'none';
+    countEl.textContent = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+  wrap.style.display = 'block';
+  exportBtn.style.display = 'inline-block';
+  countEl.textContent = `${results.length} channels found`;
+
+  // Update sort arrows
+  ['title', 'subscribers', 'views', 'videos', 'engagement'].forEach(col => {
+    const el = document.getElementById('sort-' + col);
+    if (col === sortCol) el.textContent = sortAsc ? '▲' : '▼';
+    else el.textContent = '';
+  });
+
+  tbody.innerHTML = results.map(r => `
+    <tr>
+      <td>
+        <div class="channel-cell">
+          ${r.thumbnail ? `<img class="thumb" src="${r.thumbnail}" alt="" loading="lazy">` : ''}
+          <a class="channel-link" href="${r.url}" target="_blank" rel="noopener">${escHtml(r.title)}</a>
+        </div>
+      </td>
+      <td>${formatNum(r.subscribers)}</td>
+      <td>${formatNum(r.views)}</td>
+      <td>${formatNum(r.videos)}</td>
+      <td>${r.engagement}%</td>
+      <td><div class="desc-cell" title="${escHtml(r.description)}">${escHtml(r.description.slice(0, 120))}</div></td>
+    </tr>
+  `).join('');
+}
+
+// ————— Sorting —————
+function sortBy(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = col === 'title'; }
+
+  results.sort((a, b) => {
+    let va = a[col], vb = b[col];
+    if (typeof va === 'string') {
+      va = va.toLowerCase(); vb = vb.toLowerCase();
+      return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    return sortAsc ? va - vb : vb - va;
+  });
+  renderTable();
+}
+
+// ————— CSV Export —————
+function exportCSV() {
+  if (results.length === 0) return;
+  const headers = ['Channel', 'URL', 'Subscribers', 'Total Views', 'Videos', 'Engagement Rate (%)', 'Country', 'Description'];
+  const rows = results.map(r => [
+    `"${r.title.replace(/"/g, '""')}"`,
+    r.url,
+    r.subscribers,
+    r.views,
+    r.videos,
+    r.engagement,
+    r.country,
+    `"${r.description.replace(/"/g, '""').replace(/\n/g, ' ').slice(0, 200)}"`
+  ]);
+
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `zedge-influencers-${currentPlatform}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showMsg('CSV exported ✓', 'info');
+}
+
+// ————— Quota —————
+function updateQuota() {
+  const bar = document.getElementById('quotaBar');
+  const fill = document.getElementById('quotaFill');
+  const text = document.getElementById('quotaText');
+  bar.style.display = 'flex';
+  const pct = Math.min((quotaUsed / QUOTA_LIMIT) * 100, 100);
+  fill.style.width = pct + '%';
+  fill.style.background = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--orange)' : 'var(--green)';
+  text.textContent = `~${quotaUsed}/${QUOTA_LIMIT} units`;
+}
+
+// ————— Helpers —————
+function formatNum(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return n.toString();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ————— Init —————
+loadApiKey();
+</script>
+</body>
+</html>
