@@ -120,10 +120,14 @@ tr:hover { background: var(--surface2); }
 <body>
 <div class="app">
   <!-- Header -->
-  <div class="header">
+  <div class="header" style="justify-content:space-between;">
     <div>
       <h1>🔍 <span>Zedge</span> Influencer Finder</h1>
       <div class="subtitle">Discover wallpaper & phone customization influencers across YouTube, TikTok & Instagram</div>
+    </div>
+    <div id="userBar" style="display:flex;align-items:center;gap:10px;">
+      <span id="userEmail" style="font-size:12px;color:var(--text2);"></span>
+      <a href="/auth/logout" style="font-size:12px;color:var(--red);text-decoration:none;padding:6px 12px;border:1px solid var(--border);border-radius:6px;">Sign Out</a>
     </div>
   </div>
 
@@ -909,6 +913,7 @@ function escHtml(s) {
 
 // ————— Init —————
 loadApiKey();
+fetch('/auth/status').then(r=>r.json()).then(d=>{if(d.email)document.getElementById('userEmail').textContent=d.email;}).catch(()=>{});
 </script>
 </body>
 </html>

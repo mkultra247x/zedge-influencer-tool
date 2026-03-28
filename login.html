@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign In — Zedge Influencer Finder</title>
+<style>
+:root {
+  --bg: #0f0f13;
+  --surface: #1a1a24;
+  --surface2: #24243a;
+  --accent: #6c5ce7;
+  --accent2: #a29bfe;
+  --text: #e8e8f0;
+  --text2: #8888aa;
+  --green: #00cec9;
+  --red: #ff6b6b;
+  --border: #2d2d44;
+  --radius: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; justify-content: center; align-items: center; }
+
+.login-container {
+  width: 100%; max-width: 420px; padding: 20px;
+}
+
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.logo { font-size: 48px; margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+h1 span { color: var(--accent2); }
+.subtitle { color: var(--text2); font-size: 13px; margin-bottom: 32px; }
+
+.input-group { text-align: left; margin-bottom: 20px; }
+.input-group label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px; }
+.input-group input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.input-group input:focus { border-color: var(--accent); }
+.input-group input::placeholder { color: var(--text2); }
+.domain-hint { font-size: 11px; color: var(--text2); margin-top: 6px; }
+.domain-hint span { color: var(--accent2); font-weight: 600; }
+
+.btn-login {
+  width: 100%;
+  padding: 14px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-login:hover { background: var(--accent2); }
+.btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.message {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  display: none;
+}
+.message.error { background: rgba(255,107,107,0.1); color: var(--red); border: 1px solid rgba(255,107,107,0.2); display: block; }
+.message.success { background: rgba(0,206,201,0.1); color: var(--green); border: 1px solid rgba(0,206,201,0.2); display: block; }
+
+.sent-state { display: none; }
+.sent-state .check { font-size: 48px; margin-bottom: 16px; }
+.sent-state h2 { font-size: 18px; margin-bottom: 8px; }
+.sent-state p { color: var(--text2); font-size: 13px; line-height: 1.5; }
+.sent-state .email-highlight { color: var(--accent2); font-weight: 600; }
+.sent-state .resend-link {
+  color: var(--accent2); cursor: pointer; text-decoration: underline;
+  font-size: 13px; margin-top: 16px; display: inline-block;
+}
+
+.footer { text-align: center; margin-top: 24px; color: var(--text2); font-size: 11px; }
+.footer a { color: var(--accent2); text-decoration: none; }
+
+.spinner {
+  display: inline-block; width: 18px; height: 18px;
+  border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="login-container">
+  <div class="login-card">
+    <!-- Form State -->
+    <div id="formState">
+      <div class="logo">🔍</div>
+      <h1><span>Zedge</span> Influencer Finder</h1>
+      <div class="subtitle">Sign in with your Zedge email to continue</div>
+      
+      <div class="message" id="msgBox"></div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="input-group">
+          <label for="email">Work Email</label>
+          <input type="email" id="email" placeholder="you@zedge.net" autocomplete="email" required>
+          <div class="domain-hint">Only <span>@zedge.net</span> emails are accepted</div>
+        </div>
+        <button type="submit" class="btn-login" id="submitBtn">
+          Send Magic Link ✨
+        </button>
+      </form>
+    </div>
+
+    <!-- Sent State -->
+    <div class="sent-state" id="sentState">
+      <div class="check">✉️</div>
+      <h2>Check your email</h2>
+      <p>We sent a login link to<br><span class="email-highlight" id="sentEmail"></span></p>
+      <p style="margin-top:12px;">Click the link in the email to sign in.<br>It expires in 15 minutes.</p>
+      <span class="resend-link" onclick="resetForm()">← Use a different email</span>
+    </div>
+  </div>
+  
+  <div class="footer">
+    Zedge Influencer Discovery Tool · Internal Use Only
+  </div>
+</div>
+
+<script>
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim().toLowerCase();
+  const btn = document.getElementById('submitBtn');
+  const msg = document.getElementById('msgBox');
+  
+  if (!email.endsWith('@zedge.net')) {
+    msg.textContent = 'Only @zedge.net emails are allowed.';
+    msg.className = 'message error';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Sending…';
+  msg.className = 'message';
+
+  try {
+    const res = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    
+    if (!res.ok) {
+      msg.textContent = data.error || 'Something went wrong. Try again.';
+      msg.className = 'message error';
+      btn.disabled = false;
+      btn.textContent = 'Send Magic Link ✨';
+      return;
+    }
+
+    // Show sent state
+    document.getElementById('sentEmail').textContent = email;
+    document.getElementById('formState').style.display = 'none';
+    document.getElementById('sentState').style.display = 'block';
+  } catch (err) {
+    msg.textContent = 'Network error. Please try again.';
+    msg.className = 'message error';
+    btn.disabled = false;
+    btn.textContent = 'Send Magic Link ✨';
+  }
+}
+
+function resetForm() {
+  document.getElementById('formState').style.display = 'block';
+  document.getElementById('sentState').style.display = 'none';
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').textContent = 'Send Magic Link ✨';
+  document.getElementById('email').value = '';
+  document.getElementById('msgBox').className = 'message';
+}
+</script>
+</body>
+</html>
