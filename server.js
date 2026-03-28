@@ -61,7 +61,7 @@ async function sendMagicLink(email, token) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      from: 'Zedge Influencer Finder <noreply@resend.dev>',
+      from: 'Zedge Influencer Finder <onboarding@resend.dev>',
       to: email,
       subject: '🔑 Your login link — Zedge Influencer Finder',
       html: `
@@ -75,6 +75,8 @@ async function sendMagicLink(email, token) {
       `
     })
   });
+  const body = await res.text();
+  console.log(`Resend response [${res.status}]: ${body}`);
   return res.ok;
 }
 
