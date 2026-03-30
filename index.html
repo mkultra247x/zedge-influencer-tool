@@ -274,6 +274,7 @@ tr:hover { background: var(--surface2); }
                 <th onclick="sortBy('videos')" id="th-videos">Videos <span class="sort-arrow" id="sort-videos"></span></th>
                 <th onclick="sortBy('engagement')">Eng. Rate <span class="sort-arrow" id="sort-engagement"></span></th>
                 <th onclick="sortBy('country')" id="th-country">Country <span class="sort-arrow" id="sort-country"></span></th>
+                <th id="th-topics">Topics</th>
                 <th>Socials</th>
                 <th>Email</th>
                 <th>Proof</th>
@@ -460,7 +461,7 @@ async function searchYouTube(query) {
 
     // Step 2: Get channel statistics (batch in groups of 50)
     const channelIds = allItems.map(item => item.snippet.channelId || item.id.channelId).join(',');
-    const statsUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet,brandingSettings&id=${channelIds}&key=${apiKey}`;
+    const statsUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet,brandingSettings,topicDetails&id=${channelIds}&key=${apiKey}`;
     const statsRes = await fetch(statsUrl);
     if (!statsRes.ok) {
       const err = await statsRes.json();
@@ -478,6 +479,14 @@ async function searchYouTube(query) {
 
       const desc = ch.snippet.description || '';
       const socials = parseSocials(desc);
+      
+      // Extract topics
+      const topicCats = (ch.topicDetails?.topicCategories || [])
+        .map(url => url.split('/').pop().replace(/_/g, ' ').replace(/ \(.*\)/, ''));
+      
+      // Extract channel keywords
+      const kwStr = ch.brandingSettings?.channel?.keywords || '';
+      const keywords = kwStr.match(/"[^"]+"|[^\s]+/g)?.map(k => k.replace(/"/g, '')) || [];
 
       return {
         id: ch.id,
@@ -490,7 +499,9 @@ async function searchYouTube(query) {
         engagement: parseFloat(engagement),
         url: `https://www.youtube.com/channel/${ch.id}`,
         country: ch.snippet.country || '—',
-        socials: socials
+        socials: socials,
+        topics: topicCats,
+        keywords: keywords
       };
     });
 
@@ -777,6 +788,7 @@ function renderTable() {
       <td>${formatNum(r.videos)}</td>
       <td>${r.engagement}%</td>
       <td style="white-space:nowrap;font-size:12px;">${r.country !== '—' ? countryFlag(r.country) + ' ' + r.country : '<span style="color:var(--text2);">—</span>'}</td>
+      <td style="font-size:11px;">${renderTopics(r)}</td>
       <td style="white-space:nowrap;">${renderSocials(r.socials || {instagram:[],tiktok:[],twitter:[],email:[]})}</td>
       <td style="white-space:nowrap;">${renderEmail(r.socials || {instagram:[],tiktok:[],twitter:[],email:[]})}</td>
       <td><a href="${proofLink}" target="_blank" rel="noopener" style="color:var(--green);text-decoration:none;font-size:12px;" title="See their videos matching '${escHtml(lastQuery)}'">🔗 Videos</a></td>
@@ -805,7 +817,7 @@ function sortBy(col) {
 function exportCSV() {
   if (results.length === 0) return;
   const q = encodeURIComponent(lastQuery);
-  const headers = ['Channel', 'URL', 'Instagram', 'TikTok', 'Twitter', 'Email', 'Proof Link', 'Search Keyword', 'Subscribers', 'Total Views', 'Videos', 'Engagement Rate (%)', 'Country', 'Description'];
+  const headers = ['Channel', 'URL', 'Topics', 'Keywords', 'Instagram', 'TikTok', 'Twitter', 'Email', 'Proof Link', 'Search Keyword', 'Subscribers', 'Total Views', 'Videos', 'Engagement Rate (%)', 'Country', 'Description'];
   const rows = results.map(r => {
     const proofUrl = currentPlatform === 'youtube'
       ? `https://www.youtube.com/channel/${r.id}/search?query=${q}`
@@ -814,6 +826,8 @@ function exportCSV() {
     return [
       `"${r.title.replace(/"/g, '""')}"`,
       r.url,
+      `"${(r.topics||[]).join(', ')}"`,
+      `"${(r.keywords||[]).join(', ').replace(/"/g, '""')}"`,
       `"${s.instagram.join(', ')}"`,
       `"${s.tiktok.join(', ')}"`,
       `"${s.twitter.join(', ')}"`,
@@ -899,6 +913,19 @@ function formatNum(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
   if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
   return n.toString();
+}
+
+function renderTopics(r) {
+  const parts = [];
+  if (r.topics?.length) {
+    parts.push(r.topics.map(t => `<span style="background:rgba(108,92,231,0.15);color:var(--accent2);padding:2px 6px;border-radius:4px;font-size:10px;white-space:nowrap;">${escHtml(t)}</span>`).join(' '));
+  }
+  if (r.keywords?.length) {
+    const shown = r.keywords.slice(0, 5);
+    parts.push(shown.map(k => `<span style="color:var(--text2);font-size:10px;">${escHtml(k)}</span>`).join(', '));
+    if (r.keywords.length > 5) parts.push(`<span style="color:var(--text2);font-size:10px;">+${r.keywords.length - 5} more</span>`);
+  }
+  return parts.join('<br>') || '<span style="color:var(--text2);">—</span>';
 }
 
 function countryFlag(code) {
